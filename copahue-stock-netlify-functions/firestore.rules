@@ -1,0 +1,38 @@
+rules_version = '2';
+
+// Reglas recomendadas: cualquier usuario que haya iniciado sesión en el
+// sistema (con su usuario y contraseña de Control de Stock) puede leer y
+// escribir todas las colecciones de la app. No se permite ningún acceso
+// sin sesión iniciada.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /copahue_productos/{productoId} {
+      allow read, write: if request.auth != null;
+    }
+
+    match /copahue_movimientos/{movimientoId} {
+      allow read, write: if request.auth != null;
+    }
+
+    match /copahue_categorias/{categoriaId} {
+      allow read, write: if request.auth != null;
+    }
+
+    match /copahue_solicitudes/{solicitudId} {
+      allow read, write: if request.auth != null;
+    }
+
+    match /copahue_usuarios/{usuarioId} {
+      allow read: if request.auth != null;
+      // Cada usuario solo puede crear/editar su propio documento (se
+      // usa el uid de Firebase Auth como id del documento).
+      allow write: if request.auth != null && request.auth.uid == usuarioId;
+    }
+
+    // Cualquier otra colección: denegado por defecto.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,6 @@
+[build]
+  functions = "netlify/functions"
+
+# Si ya tenías un netlify.toml en el repo con otras opciones (por ejemplo
+# "publish"), agregá esta línea "[build] functions = ..." dentro de tu
+# archivo existente en lugar de reemplazarlo entero.
