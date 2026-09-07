@@ -587,6 +587,18 @@ const ADMIN_USER = '33717567639';
 const ADMIN_PASS = 'Copahue';
 const AUTH_EMAIL_DOMAIN = '@copahue-stock.local';
 const GRUPO_VENTANA_MS = 60 * 60 * 1000; // 1 hora
+const ENDPOINT_ALERTA_STOCK = '/.netlify/functions/enviar-alerta-stock';
+const ENDPOINT_SOLICITUD_PEDIDO = '/.netlify/functions/enviar-solicitud-pedido';
+
+function notificarBackend(endpoint, payload){
+  // "Fire and forget": si falla el envío del email no debe frenar el uso del sistema,
+  // el movimiento o la solicitud ya quedaron guardados igual.
+  fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).catch(err => console.error('No se pudo enviar la notificación por email:', err));
+}
 
 let data = { productos: [], movimientos: [], categorias: [], solicitudes: [] };
 let currentModalAction = null;
@@ -1457,6 +1469,7 @@ document.getElementById('btnGuardarMovimiento').addEventListener('click', async 
   if(!cantidad || cantidad<=0){ alert('Ingresá una cantidad válida.'); return; }
 
   const stockAntes = lotesTotal(p);
+  const bajoMinimoAntes = p.minimo!=null && p.minimo!=='' && stockAntes <= Number(p.minimo);
   if(tipoActual==='salida' && cantidad > stockAntes){
     if(!confirm(`El movimiento deja el stock en negativo (actual: ${stockAntes}). ¿Continuar de todas formas?`)) return;
   }
@@ -1488,8 +1501,14 @@ document.getElementById('btnGuardarMovimiento').addEventListener('click', async 
     document.getElementById('mv-vencimiento').value='';
     document.getElementById('mv-motivo').value='';
     toast('ok', '✓', 'Movimiento registrado', `${tipoActual==='entrada'?'Entrada':'Baja'} de ${cantidad} ${p.unidad} en "${p.nombre}".`);
-    if(tipoActual==='salida' && esBajoMinimo(pLocal)){
+    // Solo se avisa por email cuando el stock CRUZA el mínimo (antes estaba arriba, ahora quedó
+    // igual o por debajo). Así no se manda un correo repetido en cada ajuste posterior.
+    if(tipoActual==='salida' && !bajoMinimoAntes && esBajoMinimo(pLocal)){
       toast('danger', '⚠️', 'Stock bajo mínimo', `"${p.nombre}" quedó en ${nuevoStock} ${p.unidad}, por debajo del mínimo (${p.minimo}). Se notificó por correo.`);
+      notificarBackend(ENDPOINT_ALERTA_STOCK, {
+        nombre: p.nombre, categoria: p.categoria, unidad: p.unidad,
+        stockActual: nuevoStock, minimo: p.minimo
+      });
     }
   }catch(err){
     console.error(err);
@@ -1571,6 +1590,7 @@ document.getElementById('btnGenerarPedido').addEventListener('click', async ()=>
       items
     });
     toast('ok','📨','Solicitud generada', `Se envió la solicitud con ${items.length} ítem(s). Se notificó por correo.`);
+    notificarBackend(ENDPOINT_SOLICITUD_PEDIDO, { usuario: solicitud.usuario, fecha: solicitud.fecha, items });
     cont.querySelectorAll('.pr-check:checked').forEach(chk=>{ chk.checked=false; const q=cont.querySelector(`[data-cant="${chk.dataset.id}"]`); q.value=''; q.disabled=true; });
   }catch(err){
     console.error(err);
